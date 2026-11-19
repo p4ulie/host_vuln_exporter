@@ -1,5 +1,5 @@
 apiVersion: v2
 name: host-vuln-exporter
 description: Prometheus exporter that scans Debian hosts over SSH with Trivy
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.1.1
+appVersion: "0.1.1"

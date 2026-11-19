@@ -13,14 +13,11 @@ sshKeySecret:
 
 interval: 43200  # seconds between scan cycles
 
-persistence:
-  size: 2Gi  # the Trivy DB cache
-  storageClass: ""
-
 resources:
   requests:
     cpu: 50m
     memory: 256Mi
+    ephemeral-storage: 2Gi  # the Trivy DB cache (~1 GB) lives in an emptyDir
   limits:
     memory: 1Gi
 

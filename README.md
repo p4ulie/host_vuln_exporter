@@ -49,13 +49,12 @@ helm install vuln helm/host-vuln-exporter --set sshKeySecret.name=vuln-ssh-key \
 | `knownHosts` | `""` | Content of the known_hosts file |
 | `sshKeySecret.name`, `.key` | none, `ssh-private-key` | Required existing Secret holding the private key |
 | `interval` | `43200` | Seconds between scan cycles |
-| `persistence.size`, `.storageClass` | `2Gi`, `""` | PVC for the Trivy DB cache; kept on uninstall |
-| `resources` | 50m CPU, 256Mi request, 1Gi limit | Pod resources |
+| `resources` | 50m CPU, 256Mi memory and 2Gi ephemeral-storage request, 1Gi memory limit | Pod resources |
 | `serviceMonitor.enabled`, `.interval` | `false`, `60s` | Prometheus Operator scrape config |
-| `prometheusRule.enabled` | `false` | Alerts: `VulnCriticalFixableHost` (1h), `HostRebootRequired` (7d), `HostVulnScanFailing` (no scan for 36h) |
+| `prometheusRule.enabled` | `false` | Alerts: `VulnCriticalFixableHost` (1h), `HostRebootRequired` (7d), `HostVulnScanFailing` (no scan for 36h), `HostVulnExporterDown` (not scraped for 1h) |
 
 The chart installs no CRDs and no dashboard (the combined dashboard lives in homenet_2.0). The pod runs as uid 65534
-with a read-only root filesystem; `/tmp` is an emptyDir and the Deployment uses `Recreate` because the cache PVC is ReadWriteOnce.
+with a read-only root filesystem; `/tmp` is an emptyDir and `/data` (the Trivy DB cache) is an emptyDir limited to 4Gi, so the DB (~1 GB) is downloaded again each time the pod starts; the Deployment uses `Recreate` so two pods never download it at once. If the first download fails, the next try is after 10 minutes instead of the full interval.
 
 ## Release
 

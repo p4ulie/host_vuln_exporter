@@ -45,10 +45,20 @@ def scan_all(targets: list[Target], cfg: Config, state: State) -> None:
         hs.timestamp, hs.success = time.time(), True
 
 
-def run_once(targets: list[Target], cfg: Config, state: State) -> None:
-    if not update_db(cfg):
+RETRY_SECONDS = 600.0  # next try after a failed first DB download, instead of the full interval
+
+
+def run_once(targets: list[Target], cfg: Config, state: State) -> bool:
+    """Returns False when the DB update failed and there is no cached DB at all (retry soon)."""
+    updated = update_db(cfg)
+    if not updated:
         log.warning("trivy DB update failed; scanning with the cached DB")
     scan_all(targets, cfg, state)
+    return updated or (cfg.cache_dir / "db" / "trivy.db").exists()
+
+
+def wait_seconds(cycle_ok: bool, interval: float) -> float:
+    return interval if cycle_ok else RETRY_SECONDS
 
 
 class Collector:
@@ -85,11 +95,12 @@ def prepare_key(src: Path) -> Path:
     return Path(dst)
 
 
-def cycle(targets: list[Target], cfg: Config, state: State) -> None:
+def cycle(targets: list[Target], cfg: Config, state: State) -> bool:
     try:
-        run_once(targets, cfg, state)
+        return run_once(targets, cfg, state)
     except Exception:  # an unexpected bug must not kill the thread; try again next cycle
         log.exception("scan cycle failed")
+        return True
 
 
 def main() -> None:
@@ -112,8 +123,7 @@ def main() -> None:
 
     def loop():
         while True:
-            cycle(targets, cfg, state)
-            time.sleep(interval)
+            time.sleep(wait_seconds(cycle(targets, cfg, state), interval))
 
     threading.Thread(target=loop, daemon=True).start()
     threading.Event().wait()

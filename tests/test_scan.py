@@ -39,6 +39,20 @@ def test_no_os_detected_is_an_error():
         summarize({"Metadata": {}, "Results": []}, reboot_required=False)
 
 
+def test_malformed_finding_does_not_fail_the_host():
+    report = {"Metadata": {"OS": {"Family": "debian"}},
+              "Results": [{"Vulnerabilities": [{"Severity": "CRITICAL"}, {"Severity": "CRITICAL", "VulnerabilityID": "CVE-9"}]}]}
+    r = summarize(report, reboot_required=False)
+    assert r.criticals == [Critical("?", "", ""), Critical("CVE-9", "", "")]
+
+
+def test_unknown_severity_fallback():
+    report = {"Metadata": {"OS": {"Family": "debian"}},
+              "Results": [{"Vulnerabilities": [{"VulnerabilityID": "CVE-1", "Severity": "BOGUS"}, {"VulnerabilityID": "CVE-2"}]}]}
+    r = summarize(report, reboot_required=False)
+    assert r.counts[("UNKNOWN", False)] == 2 and r.criticals == []
+
+
 def test_no_results_is_zero_not_error():
     r = summarize({"Metadata": {"OS": {"Family": "debian"}}}, reboot_required=False)
     assert len(r.counts) == 10 and not any(r.counts.values())
@@ -109,7 +123,7 @@ def test_ssh_arguments(env):
     fetch(Target("web", "web.lan"), cfg, tmp)
     argv = (tmp / "ssh-argv").read_text()
     for part in (f"-i {cfg.key_file}", "-o BatchMode=yes", f"-o UserKnownHostsFile={cfg.known_hosts}",
-                 "-o StrictHostKeyChecking=yes", "-F /dev/null", "vulnscan@web.lan"):
+                 "-o StrictHostKeyChecking=yes", "-o ConnectTimeout=15", "-F /dev/null", "vulnscan@web.lan"):
         assert part in argv
 
 

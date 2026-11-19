@@ -58,7 +58,7 @@ def summarize(report: dict, reboot_required: bool) -> HostResult:
             fixed = v.get("FixedVersion") or ""
             counts[(sev, bool(fixed))] += 1
             if sev == "CRITICAL":
-                criticals.append(Critical(v["VulnerabilityID"], v.get("PkgName", ""), fixed))
+                criticals.append(Critical(v.get("VulnerabilityID", "?"), v.get("PkgName") or "", fixed))
     return HostResult(counts, criticals, reboot_required)
 
 
@@ -71,7 +71,7 @@ REMOTE_CMD = (
 def fetch(target: Target, cfg: Config, dest: Path) -> None:
     cmd = [
         "ssh", "-F", "/dev/null", "-i", str(cfg.key_file), "-o", "BatchMode=yes",
-        "-o", f"UserKnownHostsFile={cfg.known_hosts}", "-o", "StrictHostKeyChecking=yes",
+        "-o", f"UserKnownHostsFile={cfg.known_hosts}", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=15",
         f"vulnscan@{target.host}", REMOTE_CMD,
     ]
     try:

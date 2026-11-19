@@ -40,7 +40,7 @@ def test_targets_and_known_hosts_in_configmap():
 def test_pod_restricted():
     p = pod()
     assert p["enableServiceLinks"] is False
-    # fsGroup makes the 0400 secret group-readable and the PVC group-writable for uid 65534
+    # fsGroup makes the 0400 secret group-readable and the emptyDir group-writable for uid 65534
     assert p["securityContext"] == {"runAsNonRoot": True, "runAsUser": 65534, "fsGroup": 65534,
                                     "seccompProfile": {"type": "RuntimeDefault"}}
     assert p["containers"][0]["securityContext"] == {
@@ -61,7 +61,7 @@ def test_tmp_and_data_mounts():
     mounts = {m["mountPath"]: m["name"] for m in p["containers"][0]["volumeMounts"]}
     vols = {v["name"]: v for v in p["volumes"]}
     assert "emptyDir" in vols[mounts["/tmp"]]
-    assert vols[mounts["/data"]]["persistentVolumeClaim"]["claimName"]
+    assert vols[mounts["/data"]] == {"name": mounts["/data"], "emptyDir": {"sizeLimit": "4Gi"}}
     env = {e["name"]: e.get("value") for e in p["containers"][0]["env"]}
     assert env["TMPDIR"] == "/tmp" and env["HOSTVULN_INTERVAL"] == "43200"
     assert env["HOSTVULN_CACHE"] == "/data/trivy"
@@ -71,11 +71,11 @@ def test_recreate_strategy():
     assert render(*REQUIRED)["Deployment"]["spec"]["strategy"] == {"type": "Recreate"}
 
 
-def test_pvc_kept_on_uninstall():
-    pvc = render(*REQUIRED, "--set", "persistence.size=3Gi")["PersistentVolumeClaim"]
-    assert pvc["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep"
-    assert pvc["spec"]["resources"]["requests"]["storage"] == "3Gi"
-    assert "storageClassName" not in pvc["spec"]
+def test_cache_is_emptydir_with_ephemeral_storage_request():
+    docs = render(*REQUIRED)
+    assert "PersistentVolumeClaim" not in docs
+    res = docs["Deployment"]["spec"]["template"]["spec"]["containers"][0]["resources"]
+    assert res["requests"]["ephemeral-storage"] == "2Gi"
 
 
 def test_toggles_and_rules():
@@ -86,10 +86,11 @@ def test_toggles_and_rules():
     assert {n: (r["expr"], r.get("for")) for n, r in rules.items()} == {
         "VulnCriticalFixableHost": ('host_vuln_count{severity="CRITICAL",fixable="true"} > 0', "1h"),
         "HostRebootRequired": ("host_reboot_required == 1", "7d"),
+        "HostVulnExporterDown": ('absent(up{job="host-vuln-exporter"} == 1)', "1h"),
         "HostVulnScanFailing": ("time() - host_scan_timestamp_seconds > 129600", None),
     }
-    assert all("{{ $labels.host }}" in r["annotations"]["summary"] for r in rules.values())
-    assert set(render(*REQUIRED)) == {"Deployment", "Service", "ConfigMap", "PersistentVolumeClaim"}
+    assert all("{{ $labels.host }}" in r["annotations"]["summary"] for n, r in rules.items() if n != "HostVulnExporterDown")
+    assert set(render(*REQUIRED)) == {"Deployment", "Service", "ConfigMap"}
 
 
 def test_chart_and_app_and_image_version_agree():

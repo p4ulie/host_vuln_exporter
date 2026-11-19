@@ -23,6 +23,13 @@ spec:
             severity: warning
           annotations:
             summary: "Host {{`{{ $labels.host }}`}} has needed a reboot for over 7 days."
+        - alert: HostVulnExporterDown
+          expr: absent(up{job="host-vuln-exporter"} == 1)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "The host vulnerability exporter has not been scraped successfully for over an hour."
         - alert: HostVulnScanFailing
           expr: time() - host_scan_timestamp_seconds > 129600
           labels:

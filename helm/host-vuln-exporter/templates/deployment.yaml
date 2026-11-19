@@ -6,7 +6,7 @@ metadata:
     {{- include "host-vuln-exporter.labels" . | nindent 4 }}
 spec:
   replicas: 1
-  # The PVC is ReadWriteOnce and Trivy locks its cache, so the old pod must stop first.
+  # Trivy locks its cache and a second pod would download the DB again, so the old pod stops first.
   strategy:
     type: Recreate
   selector:
@@ -84,5 +84,5 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: data
-          persistentVolumeClaim:
-            claimName: {{ .Chart.Name }}
+          emptyDir:
+            sizeLimit: 4Gi

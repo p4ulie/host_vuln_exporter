@@ -121,3 +121,16 @@ def test_cycle_survives_unexpected_exception(monkeypatch, caplog):
     monkeypatch.setattr(exporter, "run_once", boom)
     exporter.cycle([], None, None)  # must not raise
     assert "boom" in caplog.text
+
+
+def test_retry_soon_only_when_db_update_failed_and_no_cached_db(monkeypatch, tmp_path):
+    cfg = Config(Path("k"), Path("kh"), tmp_path / "cache", Path("w"))
+    monkeypatch.setattr(exporter, "scan_host", fake({"h1": result()}))
+    monkeypatch.setattr(exporter, "update_db", lambda cfg: False)
+    assert exporter.wait_seconds(cycle_ok=run_once([H1], cfg, State([H1])), interval=43200) == exporter.RETRY_SECONDS == 600
+    (tmp_path / "cache" / "db").mkdir(parents=True)
+    (tmp_path / "cache" / "db" / "trivy.db").write_text("x")
+    assert exporter.wait_seconds(cycle_ok=run_once([H1], cfg, State([H1])), interval=43200) == 43200
+    monkeypatch.setattr(exporter, "update_db", lambda cfg: True)
+    (tmp_path / "cache" / "db" / "trivy.db").unlink()
+    assert exporter.wait_seconds(cycle_ok=run_once([H1], cfg, State([H1])), interval=43200) == 43200
