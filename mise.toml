@@ -1,0 +1,15 @@
+[tools]
+python = "3.12"
+uv = "latest"
+
+[env]
+_.python.venv = { path = ".venv", create = true }
+
+[tasks.install]
+run = "uv pip install -r requirements.txt -r requirements-dev.txt"
+
+[tasks.test]
+run = "uv run --with-requirements requirements.txt --with-requirements requirements-dev.txt python -m pytest -q tests/"
+
+[tasks.exporter]
+run = "python -m host_vuln_exporter.exporter"
