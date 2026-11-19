@@ -40,7 +40,8 @@ def test_targets_and_known_hosts_in_configmap():
 def test_pod_restricted():
     p = pod()
     assert p["enableServiceLinks"] is False
-    assert p["securityContext"] == {"runAsNonRoot": True, "runAsUser": 65534,
+    # fsGroup makes the 0400 secret group-readable and the PVC group-writable for uid 65534
+    assert p["securityContext"] == {"runAsNonRoot": True, "runAsUser": 65534, "fsGroup": 65534,
                                     "seccompProfile": {"type": "RuntimeDefault"}}
     assert p["containers"][0]["securityContext"] == {
         "allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}
