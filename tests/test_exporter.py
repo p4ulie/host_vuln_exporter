@@ -101,3 +101,23 @@ def test_key_copied_private(tmp_path, monkeypatch):
     assert dst != src and dst.read_text() == "SECRET"
     assert stat.S_IMODE(dst.stat().st_mode) == 0o600
     assert dst.parent == tmp_path / "tmp"
+
+
+def test_empty_tmpdir_is_not_cwd(tmp_path, monkeypatch):
+    src = tmp_path / "k"
+    src.write_text("key")
+    monkeypatch.setenv("TMPDIR", "")
+    monkeypatch.chdir(tmp_path)
+    dst = prepare_key(src)
+    try:
+        assert dst.parent != tmp_path
+    finally:
+        dst.unlink()
+
+
+def test_cycle_survives_unexpected_exception(monkeypatch, caplog):
+    def boom(*a):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(exporter, "run_once", boom)
+    exporter.cycle([], None, None)  # must not raise
+    assert "boom" in caplog.text

@@ -1,0 +1,33 @@
+image:
+  repository: 10.34.1.1:30095/host-vuln-exporter
+  tag: ""  # empty means the chart's appVersion
+
+# Hosts to scan: a list of {name, host}. Set by the deployment.
+targets: []
+# known_hosts file content for those hosts (ssh runs with StrictHostKeyChecking and no other trust).
+knownHosts: ""
+
+sshKeySecret:
+  name: ""  # required, an existing Secret; the chart never creates one
+  key: ssh-private-key
+
+interval: 43200  # seconds between scan cycles
+
+persistence:
+  size: 2Gi  # the Trivy DB cache
+  storageClass: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# The chart installs no CRDs; these need prometheus-operator.
+serviceMonitor:
+  enabled: false
+  interval: 60s
+
+prometheusRule:
+  enabled: false

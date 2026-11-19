@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    {{- include "host-vuln-exporter.labels" . | nindent 4 }}
+data:
+  targets.yaml: |
+    {{- toYaml .Values.targets | nindent 4 }}
+  known_hosts: {{ .Values.knownHosts | quote }}

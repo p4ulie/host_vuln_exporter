@@ -13,3 +13,15 @@ run = "uv run --with-requirements requirements.txt --with-requirements requireme
 
 [tasks.exporter]
 run = "python -m host_vuln_exporter.exporter"
+
+[tasks."image:build"]
+run = "docker build -t host-vuln-exporter:dev ."
+
+# Version comes from Chart.yaml so there is one place to bump it.
+[tasks."image:push"]
+run = '''
+registry=${REGISTRY:-10.34.1.1:30095}
+v=$(sed -n 's/^version: *//p' helm/host-vuln-exporter/Chart.yaml | tr -d '"')
+[ -n "$v" ] || { echo "no version: in helm/host-vuln-exporter/Chart.yaml" >&2; exit 1; }
+docker build -t "$registry/host-vuln-exporter:$v" . && docker push "$registry/host-vuln-exporter:$v"
+'''

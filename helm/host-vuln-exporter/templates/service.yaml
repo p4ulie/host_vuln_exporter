@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    {{- include "host-vuln-exporter.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "host-vuln-exporter.selector" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: 9880
+      targetPort: metrics

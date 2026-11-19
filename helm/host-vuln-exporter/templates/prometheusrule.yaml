@@ -1,0 +1,32 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    {{- include "host-vuln-exporter.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: host-vuln
+      rules:
+        - alert: VulnCriticalFixableHost
+          expr: host_vuln_count{severity="CRITICAL",fixable="true"} > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Host {{`{{ $labels.host }}`}} has a critical vulnerability that an update fixes."
+        - alert: HostRebootRequired
+          expr: host_reboot_required == 1
+          for: 7d
+          labels:
+            severity: warning
+          annotations:
+            summary: "Host {{`{{ $labels.host }}`}} has needed a reboot for over 7 days."
+        - alert: HostVulnScanFailing
+          expr: time() - host_scan_timestamp_seconds > 129600
+          labels:
+            severity: warning
+          annotations:
+            summary: "Host {{`{{ $labels.host }}`}} has had no successful vulnerability scan for over 36 hours."
+{{- end }}

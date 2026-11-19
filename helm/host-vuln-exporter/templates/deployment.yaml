@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    {{- include "host-vuln-exporter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  # The PVC is ReadWriteOnce and Trivy locks its cache, so the old pod must stop first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "host-vuln-exporter.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "host-vuln-exporter.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      # A Service named host-vuln-exporter would inject HOST_VULN_EXPORTER_* variables; none are wanted.
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: exporter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          env:
+            - name: HOSTVULN_TARGETS
+              value: /etc/host-vuln-exporter/targets.yaml
+            - name: HOSTVULN_KNOWN_HOSTS
+              value: /etc/host-vuln-exporter/known_hosts
+            - name: HOSTVULN_SSH_KEY
+              value: /secrets/{{ .Values.sshKeySecret.key }}
+            - name: HOSTVULN_CACHE
+              value: /data/trivy
+            - name: HOSTVULN_INTERVAL
+              value: {{ .Values.interval | quote }}
+            - name: HOSTVULN_EXPORTER_PORT
+              value: "9880"
+            - name: TMPDIR
+              value: /tmp
+          ports:
+            - name: metrics
+              containerPort: 9880
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/host-vuln-exporter
+              readOnly: true
+            - name: ssh-key
+              mountPath: /secrets
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Chart.Name }}
+        - name: ssh-key
+          secret:
+            secretName: {{ required "sshKeySecret.name is required" .Values.sshKeySecret.name | quote }}
+            defaultMode: 0400
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Chart.Name }}

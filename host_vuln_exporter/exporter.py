@@ -79,10 +79,17 @@ class Collector:
 
 def prepare_key(src: Path) -> Path:
     """ssh refuses a key it does not own with 0600; the mounted secret is neither, so copy it."""
-    fd, dst = tempfile.mkstemp(prefix="ssh-key-", dir=os.environ.get("TMPDIR"))  # mkstemp creates 0600
+    fd, dst = tempfile.mkstemp(prefix="ssh-key-", dir=os.environ.get("TMPDIR") or None)  # mkstemp creates 0600
     with os.fdopen(fd, "wb") as f:
         f.write(Path(src).read_bytes())
     return Path(dst)
+
+
+def cycle(targets: list[Target], cfg: Config, state: State) -> None:
+    try:
+        run_once(targets, cfg, state)
+    except Exception:  # an unexpected bug must not kill the thread; try again next cycle
+        log.exception("scan cycle failed")
 
 
 def main() -> None:
@@ -105,7 +112,7 @@ def main() -> None:
 
     def loop():
         while True:
-            run_once(targets, cfg, state)
+            cycle(targets, cfg, state)
             time.sleep(interval)
 
     threading.Thread(target=loop, daemon=True).start()
